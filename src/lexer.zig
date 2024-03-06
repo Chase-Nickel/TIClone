@@ -1,165 +1,241 @@
+// TODO:
+// * more rigorous testing. Ensure fully working
+// * cut down Lexer struct size
+//   ✔️ Lexer.ch
+//   * Lexer.read_pos
+// ✔️ decimal points
+// * Number separator (comma, underscore)
+// ✔️ Exponent control characters
+// * Identifiers
+//   * Single char
+//   ✔️ Subscript control characters
+//   * Functions
+//     * Lookahead lexing
+//     * Dynamic list...
+// * cache token results
+
 const std = @import("std");
 const Token = @import("token.zig").Token;
 
 pub const LexError = error{
     EndOfExpression,
-    InvalidSyntax,
+    InvalidCharacter,
 };
 
 pub const Lexer = struct {
-    expression: []const u8,
-    index: usize = 0,
-    front: ?Token = null,
-    next: ?Token = null,
+    expr: []const u8,
+    pos: usize,
+    read_pos: usize,
 
-    /// \brief: Initialize a new lexer
-    /// @arg expression: expression that
-    ///                  the lexer is lex
-    /// @return New lexer object or an
-    ///         InvalidSyntax error
-    pub fn init(expression: []const u8) LexError!Lexer {
-        var lexer: Lexer = .{
-            .expression = expression,
+    pub fn init(expression: []const u8) Lexer {
+        var l: Lexer = .{
+            .expr = expression,
+            .pos = 0,
+            .read_pos = 0,
         };
-
-        if (lexer.peekCurrentChar() != null)
-            try lexer.constructNextToken();
-
-        lexer.front = lexer.next;
-        if (lexer.peekCurrentChar() != null)
-            try lexer.constructNextToken();
-
-        return lexer;
+        l.readChar() catch undefined;
+        return l;
     }
 
-    /// \brief: Returns if a lexer is at
-    ///         the end of the expression or not
-    ///  @arg lexer: Lexer object to act on
-    ///  @return Whether the lexer has exhausted
-    ///          the expression or not
-    pub fn atEnd(lexer: Lexer) bool {
-        return lexer.index >= lexer.expression.len;
-    }
-
-    /// \brief: Peek at the current token
-    /// @arg lexer: Lexer from which
-    ///             the token is taken
-    /// @return EndOfExpression error or
-    ///         the lexer's current token
-    pub fn peekCurrent(lexer: Lexer) LexError!Token {
-        if (lexer.front) |token| {
-            return token;
-        }
-        return LexError.EndOfExpression;
-    }
-
-    /// \brief: Peek at the next token
-    /// @arg lexer: Lexer from which
-    ///             the token is taken
-    /// @return LexError or the
-    ///         lexer's next token
-    pub fn peekNext(lexer: Lexer) LexError!Token {
-        if (lexer.next) |token| {
-            return token;
-        }
-        return LexError.EndOfExpression;
-    }
-
-    /// \brief: Return the front token and
-    ///         then move the lexer forward
-    ///         in the expression
-    /// @arg lexer: Lexer to act on
-    /// @return LexError or the lexer's front
-    ///         token before advancing
-    pub fn consume(lexer: *Lexer) LexError!Token {
-        const res: ?Token = lexer.front;
-
-        lexer.front = lexer.next;
-        if (lexer.peekCurrentChar() != null)
-            try lexer.constructNextToken();
-
-        if (res) |token| {
-            return token;
-        }
-        return LexError.EndOfExpression;
-    }
-
-    fn constructNextToken(lexer: *Lexer) LexError!void {
-        const start: usize = lexer.index;
-        var token_type: Token.Type = undefined;
-
-        token_type = try lexer.matchSingleChar() orelse
-            try lexer.matchMultipleChar();
-
-        lexer.next = Token{
-            .type = token_type,
-            .start = start,
-        };
-    }
-
-    fn matchSingleChar(lexer: *Lexer) LexError!?Token.Type {
-        var c: u8 = undefined;
-        if (lexer.peekCurrentChar()) |char| {
-            c = char;
-        } else {
+    fn peekChar(l: *Lexer) !u8 {
+        if (l.read_pos >= l.expr.len) {
             return LexError.EndOfExpression;
         }
-        lexer.index += 1;
-
-        return switch (c) {
-            '(' => .LeftParenthesis,
-            ')' => .RightParenthesis,
-            '+' => .Plus,
-            '-' => .Minus,
-            '*' => .Times,
-            '/' => .Divide,
-            'A'...'Z', 'a'...'z' => .Symbol,
-            else => null,
-        };
+        return l.expr[l.read_pos];
     }
 
-    fn matchMultipleChar(lexer: *Lexer) LexError!Token.Type {
-        var c: u8 = undefined;
-        if (lexer.peekCurrentChar()) |char| {
-            c = char;
-        } else {
+    fn readChar(l: *Lexer) !void {
+        if (l.read_pos >= l.expr.len) {
             return LexError.EndOfExpression;
         }
-        lexer.index += 1;
+        l.pos = l.read_pos;
+        l.read_pos += 1;
+    }
 
-        switch (c) {
-            '_' => {
-                c = lexer.peekNextChar() orelse ' ';
-                if (c == '{')
-                    return Token.Type.SubscriptStart;
-                return Token.Type.SubscriptNext;
-            },
-            '0'...'9', '.' => {
-                var has_dec: bool = false;
-                while (std.ascii.isDigit(c) or c == '.') {
-                    if (c == '.') {
-                        if (has_dec)
-                            return LexError.InvalidSyntax;
-                        has_dec = true;
-                    }
-                    lexer.index += 1;
-                    c = lexer.peekCurrentChar() orelse break;
+    fn eatWhitespace(l: *Lexer) void {
+        var ch: u8 = l.expr[l.pos];
+        while (ch == ' ' or ch == '\n' or ch == '\t' or ch == '\r') {
+            l.readChar() catch break;
+            ch = l.expr[l.pos];
+        }
+    }
+
+    pub fn nextToken(l: *Lexer) !Token {
+        var tok: Token = undefined;
+
+        if (l.pos >= l.expr.len) {
+            return LexError.EndOfExpression;
+        }
+
+        l.eatWhitespace();
+        const ch: u8 = l.expr[l.pos];
+
+        switch (ch) {
+            '`' => tok = newToken(Token.Type.Grave, "`"),
+            '~' => tok = newToken(Token.Type.Tilde, "~"),
+            '!' => {
+                if (l.peekChar() catch 0 == '=') {
+                    tok = newToken(Token.Type.NotEquals, "!=");
+                } else {
+                    tok = newToken(Token.Type.Bang, "!");
                 }
-                return Token.Type.Number;
             },
-            else => return LexError.InvalidSyntax,
+            '@' => tok = newToken(Token.Type.At, "@"),
+            '#' => tok = newToken(Token.Type.Hashtag, "#"),
+            '$' => tok = newToken(Token.Type.Dollar, "$"),
+            '%' => tok = newToken(Token.Type.Percent, "%"),
+            '^' => tok = newToken(Token.Type.Caret, "^"),
+            '&' => tok = newToken(Token.Type.And, "&"),
+            '*' => tok = newToken(Token.Type.Asterisk, "*"),
+            '(' => tok = newToken(Token.Type.LeftParenthesis, "("),
+            ')' => tok = newToken(Token.Type.RightParenthesis, ")"),
+            '-' => tok = newToken(Token.Type.Minus, "-"),
+            '=' => {
+                if (l.peekChar() catch 0 == '=') {
+                    l.readChar() catch undefined;
+                    tok = newToken(Token.Type.Equals, "==");
+                } else {
+                    tok = newToken(Token.Type.Assign, "=");
+                }
+            },
+            '+' => tok = newToken(Token.Type.Plus, "+"),
+            '[' => tok = newToken(Token.Type.LeftBracket, "["),
+            ']' => tok = newToken(Token.Type.RightBracket, "]"),
+            '{' => tok = newToken(Token.Type.LeftCurly, "{"),
+            '}' => tok = newToken(Token.Type.RightCurly, "}"),
+            '|' => tok = newToken(Token.Type.Pipe, "|"),
+            ';' => tok = newToken(Token.Type.Semicolon, ";"),
+            ':' => tok = newToken(Token.Type.Colon, ":"),
+            '\'' => tok = newToken(Token.Type.SingleQuote, "'"),
+            '"' => tok = newToken(Token.Type.DoubleQuote, "\""),
+            ',' => tok = newToken(Token.Type.Comma, ","),
+            '<' => tok = newToken(Token.Type.LeftAngle, "<"),
+            '>' => tok = newToken(Token.Type.RightAngle, ">"),
+            '.' => tok = newToken(Token.Type.Period, "."),
+            '/' => tok = newToken(Token.Type.Slash, "/"),
+            '?' => tok = newToken(Token.Type.Question, "?"),
+            17 => tok = newToken(Token.Type.SubscriptStart, "\x11"), // DC1
+            18 => tok = newToken(Token.Type.SubscriptEnd, "\x12"), // DC2
+            19 => tok = newToken(Token.Type.SuperscriptStart, "\x13"), // DC3
+            20 => tok = newToken(Token.Type.SuperscriptEnd, "\x14"), // DC4
+            else => {
+                if (isAlphabetic(ch)) {
+                    tok.type = Token.Type.Identifer;
+                    tok.literal = l.readIdentifier();
+                    return tok;
+                } else if (isNumeric(ch)) {
+                    tok.type = Token.Type.Integer;
+                    tok.literal = l.readNumber();
+                    return tok;
+                }
+                l.readChar() catch undefined;
+                return LexError.InvalidCharacter;
+            },
         }
+
+        l.readChar() catch undefined;
+        return tok;
     }
 
-    fn peekCurrentChar(lexer: Lexer) ?u8 {
-        if (lexer.atEnd())
-            return null;
-        return lexer.expression[lexer.index];
+    fn readIdentifier(l: *Lexer) []const u8 {
+        const start: usize = l.pos;
+        var ch: u8 = l.expr[l.pos];
+        while (isAlphabetic(ch)) {
+            l.readChar() catch break;
+            ch = l.expr[l.pos];
+        }
+        return l.expr[start..l.pos];
     }
 
-    fn peekNextChar(lexer: Lexer) ?u8 {
-        if (lexer.index + 1 >= lexer.expression.len)
-            return null;
-        return lexer.expression[lexer.index + 1];
+    fn readNumber(l: *Lexer) []const u8 {
+        const start: usize = l.pos;
+        var has_dec: bool = false;
+        var ch: u8 = l.expr[l.pos];
+        while (isNumeric(ch)) {
+            if (ch == '.') {
+                if (has_dec) break;
+                has_dec = true;
+            }
+
+            l.readChar() catch break;
+            ch = l.expr[l.pos];
+        }
+        return l.expr[start..l.pos];
     }
 };
+
+fn isAlphabetic(ch: u8) bool {
+    return ('a' <= ch and ch <= 'z') or
+        ('A' <= ch and ch <= 'Z') or
+        (ch == '_');
+}
+
+fn isNumeric(ch: u8) bool {
+    return ('0' <= ch and ch <= '9') or ch == '.';
+}
+
+fn newToken(tokenType: Token.Type, chs: []const u8) Token {
+    return Token{ .type = tokenType, .literal = chs };
+}
+
+test "Lexer 1" {
+    const input: []const u8 =
+        "let x: u\x11banana\x12 = 13;\n" ++
+        "5.8 * x\x137\x14 + 3 == 19;\n" ++
+        "fn(x) {\n" ++
+        "    return x / 3;\n" ++
+        "}";
+
+    const expected = [_]Token{
+        newToken(Token.Type.Identifer, "let"),
+        newToken(Token.Type.Identifer, "x"),
+        newToken(Token.Type.Colon, ":"),
+        newToken(Token.Type.Identifer, "u"),
+        newToken(Token.Type.SubscriptStart, "\x11"),
+        newToken(Token.Type.Identifer, "banana"),
+        newToken(Token.Type.SubscriptEnd, "\x12"),
+        newToken(Token.Type.Assign, "="),
+        newToken(Token.Type.Integer, "13"),
+        newToken(Token.Type.Semicolon, ";"),
+        newToken(Token.Type.Integer, "5.8"),
+        newToken(Token.Type.Asterisk, "*"),
+        newToken(Token.Type.Identifer, "x"),
+        newToken(Token.Type.SuperscriptStart, "\x13"),
+        newToken(Token.Type.Integer, "7"),
+        newToken(Token.Type.SuperscriptEnd, "\x14"),
+        newToken(Token.Type.Plus, "+"),
+        newToken(Token.Type.Integer, "3"),
+        newToken(Token.Type.Equals, "=="),
+        newToken(Token.Type.Integer, "19"),
+        newToken(Token.Type.Semicolon, ";"),
+        newToken(Token.Type.Identifer, "fn"),
+        newToken(Token.Type.LeftParenthesis, "("),
+        newToken(Token.Type.Identifer, "x"),
+        newToken(Token.Type.RightParenthesis, ")"),
+        newToken(Token.Type.LeftCurly, "{"),
+        newToken(Token.Type.Identifer, "return"),
+        newToken(Token.Type.Identifer, "x"),
+        newToken(Token.Type.Slash, "/"),
+        newToken(Token.Type.Integer, "3"),
+        newToken(Token.Type.Semicolon, ";"),
+        newToken(Token.Type.RightCurly, "}"),
+    };
+
+    var l = Lexer.init(input);
+
+    for (expected) |t| {
+        const tok: Token = try l.nextToken();
+
+        // std.debug.print(
+        //     "\nexpected: <{any}:{s}>  |  got: <{any}:{s}>",
+        //     .{
+        //         t.type,
+        //         t.literal,
+        //         tok.type,
+        //         tok.literal,
+        //     },
+        // );
+        try std.testing.expectEqual(tok.type, t.type);
+        try std.testing.expect(std.mem.eql(u8, tok.literal, t.literal));
+    }
+}

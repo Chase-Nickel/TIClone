@@ -2,45 +2,51 @@ const std = @import("std");
 
 pub const Token = struct {
     type: Type,
-    start: usize,
+    literal: []const u8,
 
     pub const Type = enum {
+        Identifer,
+        Integer,
+
+        Grave,
+        Tilde,
+        Bang,
+        At,
+        Hashtag,
+        Dollar,
+        Percent,
+        Caret,
+        And,
+        Asterisk,
         LeftParenthesis,
         RightParenthesis,
-        Plus,
         Minus,
-        Times,
-        Divide,
-        Number,
-        Symbol,
-        SubscriptNext,
+        Assign,
+        Plus,
+        LeftBracket,
+        RightBracket,
+        LeftCurly,
+        RightCurly,
+        Pipe,
+        Semicolon,
+        Colon,
+        SingleQuote,
+        DoubleQuote,
+        Comma,
+        Period,
+        LeftAngle,
+        RightAngle,
+        Slash,
+        Question,
+
+        Equals,
+        NotEquals,
+        LTE,
+        GTE,
+
         SubscriptStart,
         SubscriptEnd,
+        SuperscriptStart,
+        SuperscriptEnd,
     };
-
-    pub fn print(token: Token) !void {
-        const c: u8 = switch (token.type) {
-            .LeftParenthesis => '(',
-            .RightParenthesis => ')',
-            .Plus => '+',
-            .Minus => '-',
-            .Times => '*',
-            .Divide => '/',
-            .Number => 'N',
-            .Symbol => 'S',
-            .SubscriptNext => '_',
-            .SubscriptStart => '{',
-            .SubscriptEnd => '}',
-        };
-        const stdout_file = std.io.getStdOut().writer();
-        var bw = std.io.bufferedWriter(stdout_file);
-        const stdout = bw.writer();
-
-        try stdout.print(
-            "<tok:{}:{u}>",
-            .{ token.start, c },
-        );
-
-        try bw.flush();
-    }
 };
