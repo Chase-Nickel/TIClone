@@ -1,5 +1,5 @@
 // TODO:
-// * more rigorous testing. Ensure fully working
+// * more tests. Ensure fully working
 // * cut down Lexer struct size
 //   ✔️ Lexer.ch
 //   * Lexer.read_pos
@@ -7,11 +7,15 @@
 // * Number separator (comma, underscore)
 // ✔️ Exponent control characters
 // * Identifiers
-//   * Single char
 //   ✔️ Subscript control characters
+//   * Variables
+//     * Single char
 //   * Functions
+//     * User defined - variables
+//     * Builtin - tokens
+//   * Programs
 //     * Lookahead lexing
-//     * Dynamic list...
+//     ✔️ Dynamic list...
 // * cache token results
 
 const std = @import("std");
@@ -75,7 +79,7 @@ pub const Lexer = struct {
             '~' => tok = newToken(Token.Type.Tilde, "~"),
             '!' => {
                 if (l.peekChar() catch 0 == '=') {
-                    tok = newToken(Token.Type.NotEquals, "!=");
+                    tok = newToken(Token.Type.CompareNotEqual, "!=");
                 } else {
                     tok = newToken(Token.Type.Bang, "!");
                 }
@@ -93,9 +97,9 @@ pub const Lexer = struct {
             '=' => {
                 if (l.peekChar() catch 0 == '=') {
                     l.readChar() catch undefined;
-                    tok = newToken(Token.Type.Equals, "==");
+                    tok = newToken(Token.Type.CompareEqual, "==");
                 } else {
-                    tok = newToken(Token.Type.Assign, "=");
+                    tok = newToken(Token.Type.Equals, "=");
                 }
             },
             '+' => tok = newToken(Token.Type.Plus, "+"),
@@ -109,8 +113,22 @@ pub const Lexer = struct {
             '\'' => tok = newToken(Token.Type.SingleQuote, "'"),
             '"' => tok = newToken(Token.Type.DoubleQuote, "\""),
             ',' => tok = newToken(Token.Type.Comma, ","),
-            '<' => tok = newToken(Token.Type.LeftAngle, "<"),
-            '>' => tok = newToken(Token.Type.RightAngle, ">"),
+            '<' => {
+                if (l.peekChar() catch 0 == '=') {
+                    l.readChar() catch undefined;
+                    tok = newToken(Token.Type.CompareLTE, "<=");
+                } else {
+                    tok = newToken(Token.Type.LeftAngle, "<");
+                }
+            },
+            '>' => {
+                if (l.peekChar() catch 0 == '=') {
+                    l.readChar() catch undefined;
+                    tok = newToken(Token.Type.CompareGTE, ">=");
+                } else {
+                    tok = newToken(Token.Type.RightAngle, ">");
+                }
+            },
             '.' => tok = newToken(Token.Type.Period, "."),
             '/' => tok = newToken(Token.Type.Slash, "/"),
             '?' => tok = newToken(Token.Type.Question, "?"),

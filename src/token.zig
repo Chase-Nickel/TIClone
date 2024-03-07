@@ -21,7 +21,7 @@ pub const Token = struct {
         LeftParenthesis,
         RightParenthesis,
         Minus,
-        Assign,
+        Equals,
         Plus,
         LeftBracket,
         RightBracket,
@@ -39,10 +39,10 @@ pub const Token = struct {
         Slash,
         Question,
 
-        Equals,
-        NotEquals,
-        LTE,
-        GTE,
+        CompareEqual,
+        CompareNotEqual,
+        CompareLTE,
+        CompareGTE,
 
         SubscriptStart,
         SubscriptEnd,
