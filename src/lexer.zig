@@ -178,7 +178,7 @@ fn newToken(tokenType: Token.Type, chs: []const u8) Token {
     return Token{ .type = tokenType, .literal = chs };
 }
 
-test "Lexer 1" {
+test "Lexer->Expression 1" {
     const input: []const u8 =
         "let x: u\x11banana\x12 = 13;\n" ++
         "5.8 * x\x137\x14 + 3 == 19;\n" ++

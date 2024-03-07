@@ -1,25 +1,25 @@
 const std = @import("std");
 
-const TIFunctionListError = error{ Full, Empty, FunctionNotFound };
+const ListError = error{ Full, Empty, FunctionNotFound };
 
-const TIFunction = []u8; // Function is just its name
-
-pub fn TIFunctionList(comptime length: usize) type {
+/// Sorted ArrayList of []u8
+/// Greatest length to shortest
+pub fn SortedStringList(comptime length: usize) type {
     return struct {
         const Self = @This();
 
-        buf: [length]TIFunction = undefined,
+        buf: [length][]u8 = undefined,
         len: usize = 0,
 
-        pub fn insert(self: *Self, func: TIFunction) !void {
+        pub fn insert(self: *Self, func: []u8) !void {
             if (self.len >= length)
-                return TIFunctionListError.Full;
+                return ListError.Full;
 
             defer self.len += 1;
             for (self.buf[0..self.len], 0..) |v, i| {
                 if (func.len > v.len) {
                     std.mem.copyBackwards(
-                        TIFunction,
+                        []u8,
                         self.buf[i + 1 .. self.len + 2],
                         self.buf[i .. self.len + 1],
                     );
@@ -30,15 +30,15 @@ pub fn TIFunctionList(comptime length: usize) type {
             self.buf[self.len] = func;
         }
 
-        pub fn remove(self: *Self, func: TIFunction) !void {
+        pub fn remove(self: *Self, func: []u8) !void {
             if (self.len == 0) {
-                return TIFunctionListError.Empty;
+                return ListError.Empty;
             }
 
             for (self.buf, 0..) |v, i| {
                 if (std.mem.eql(u8, v, func)) {
                     std.mem.copyForwards(
-                        TIFunction,
+                        []u8,
                         self.buf[i..self.len],
                         self.buf[i + 1 .. self.len + 1],
                     );
@@ -46,14 +46,14 @@ pub fn TIFunctionList(comptime length: usize) type {
                     return;
                 }
             }
-            return TIFunctionListError.FunctionNotFound;
+            return ListError.FunctionNotFound;
         }
     };
 }
 
-test "Insert test" {
+test "SortedStringList.insert" {
     std.debug.print("\n", .{});
-    var foo = TIFunctionList(16){};
+    var foo = SortedStringList(16){};
     var sin = [_]u8{ 's', 'i', 'n' };
     var cos = [_]u8{ 'c', 'o', 's' };
     var rand = [_]u8{ 'r', 'a', 'n', 'd' };
@@ -64,7 +64,7 @@ test "Insert test" {
     try foo.insert(&rand);
     try foo.insert(&tan);
     try foo.insert(&normcdf);
-    const expected = [_]TIFunction{
+    const expected = [_][]u8{
         &normcdf,
         &rand,
         &sin,
@@ -79,9 +79,9 @@ test "Insert test" {
     }
 }
 
-test "Remove test" {
+test "SortedStringList.remove" {
     std.debug.print("\n", .{});
-    var foo = TIFunctionList(16){};
+    var foo = SortedStringList(16){};
     var sin = [_]u8{ 's', 'i', 'n' };
     var cos = [_]u8{ 'c', 'o', 's' };
     var rand = [_]u8{ 'r', 'a', 'n', 'd' };
@@ -96,7 +96,7 @@ test "Remove test" {
     try foo.remove(&tan);
     try foo.remove(&normcdf);
     try foo.remove(&sin);
-    const expected = [_]TIFunction{
+    const expected = [_][]u8{
         // &normcdf,
         &rand,
         // &sin,
