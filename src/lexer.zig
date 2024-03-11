@@ -8,7 +8,7 @@
 // ✔️ Exponent control characters
 // * Identifiers
 //   ✔️ Subscript control characters
-//   * Variables
+//   ✔️ Variables
 //     * Single char
 //   * Functions
 //     * User defined - variables

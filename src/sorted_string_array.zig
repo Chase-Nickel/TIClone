@@ -9,14 +9,14 @@ const Direction = enum {
 /// Sorted Array of []u8
 /// Greatest length to shortest
 pub fn SortedStringArray(comptime length: usize, comptime comparison: Direction) type {
-    _ = switch (comparison) {
-        .Left, .Right => null,
-        else => @compileError(
+    if (comparison != .Left and comparison != .Right) {
+        @compileError(
             \\Comparison direction must be either:
             \\  .Left  for least to greatest
             \\  .Right for greatest to least
-        ),
-    };
+        );
+    }
+
     return struct {
         const Self = @This();
 
@@ -50,7 +50,7 @@ pub fn SortedStringArray(comptime length: usize, comptime comparison: Direction)
             self.buf[self.len] = func;
         }
 
-        pub fn remove(self: *Self, func: []const u8) error{Empty, ItemNotFound}!void {
+        pub fn remove(self: *Self, func: []const u8) error{ Empty, ItemNotFound }!void {
             if (self.len == 0) {
                 return error.Empty;
             }
@@ -173,5 +173,5 @@ test "SortedStringArray(.Left).remove" {
     }
 
     try std.testing.expectError(error.ItemNotFound, foo.remove("chicken"));
-    try std.testing.expectError(error.ItemNotFound, foo.remove("tan"));
+    try std.testing.expectError(error.ItemNotFound, foo.remove("cos"));
 }
