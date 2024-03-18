@@ -5,8 +5,9 @@ pub const Token = struct {
     literal: []const u8,
 
     pub const Type = enum {
-        Identifer,
-        Integer,
+        Identifier,
+        Number,
+        Program,
 
         Grave,
         Tilde,
@@ -38,12 +39,10 @@ pub const Token = struct {
         RightAngle,
         Slash,
         Question,
-
-        CompareEqual,
-        CompareNotEqual,
+        CompareEquals,
+        CompareNotEquals,
         CompareLTE,
         CompareGTE,
-
         SubscriptStart,
         SubscriptEnd,
         SuperscriptStart,

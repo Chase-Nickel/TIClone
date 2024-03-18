@@ -1,22 +1,10 @@
 const std = @import("std");
 
-const Direction = enum {
-    Left,
-    Right,
-    Center,
-};
-
 /// Sorted Array of []u8
-/// Greatest length to shortest
-pub fn SortedStringArray(comptime length: usize, comptime comparison: Direction) type {
-    if (comparison != .Left and comparison != .Right) {
-        @compileError(
-            \\Comparison direction must be either:
-            \\  .Left  for least to greatest
-            \\  .Right for greatest to least
-        );
-    }
-
+pub fn SortedStringArray(comptime length: usize, comptime sort: enum {
+    ShortestToLongest,
+    LongestToShortest,
+}) type {
     return struct {
         const Self = @This();
 
@@ -24,11 +12,11 @@ pub fn SortedStringArray(comptime length: usize, comptime comparison: Direction)
         len: usize = 0,
 
         fn compare(left: []const u8, right: []const u8) bool {
-            if (comparison == .Left)
+            if (sort == .ShortestToLongest)
                 return left.len < right.len;
-            if (comparison == .Right)
+            if (sort == .LongestToShortest)
                 return left.len > right.len;
-            return false;
+            unreachable;
         }
 
         pub fn insert(self: *Self, func: []const u8) error{Full}!void {
@@ -68,12 +56,18 @@ pub fn SortedStringArray(comptime length: usize, comptime comparison: Direction)
             }
             return error.ItemNotFound;
         }
+
+        /// Return a slice owned by SortedStringList
+        /// containing all of the strings
+        pub fn asSlice(self: Self) []const []const u8 {
+            return self.buf[0..self.len];
+        }
     };
 }
 
-test "SortedStringList(.Right).insert" {
+test "SortedStringList(.LongestToShortest).insert" {
     std.debug.print("\n", .{});
-    var foo = SortedStringArray(16, Direction.Right){};
+    var foo = SortedStringArray(16, .LongestToShortest){};
     try foo.insert("sin");
     try foo.insert("cos");
     try foo.insert("rand");
@@ -87,16 +81,16 @@ test "SortedStringList(.Right).insert" {
         "tan",
     };
 
-    for (foo.buf[0..foo.len], expected) |obs, exp| {
-        std.debug.print("Expected: {any}  |  Got: {any}", .{ exp, obs });
-        std.debug.print("\n", .{});
+    for (foo.asSlice(), expected) |obs, exp| {
+        // std.debug.print("Expected: {any}  |  Got: {any}", .{ exp, obs });
+        // std.debug.print("\n", .{});
         try std.testing.expect(std.mem.eql(u8, obs, exp));
     }
 }
 
-test "SortedStringList(.Left).insert" {
+test "SortedStringList(.ShortestToLongest).insert" {
     std.debug.print("\n", .{});
-    var foo = SortedStringArray(16, Direction.Left){};
+    var foo = SortedStringArray(16, .ShortestToLongest){};
     try foo.insert("sin");
     try foo.insert("normalcdf");
     try foo.insert("cos");
@@ -110,16 +104,16 @@ test "SortedStringList(.Left).insert" {
         "normalcdf",
     };
 
-    for (foo.buf[0..foo.len], expected) |obs, exp| {
-        std.debug.print("Expected: {any}  |  Got: {any}", .{ exp, obs });
-        std.debug.print("\n", .{});
+    for (foo.asSlice(), expected) |obs, exp| {
+        // std.debug.print("Expected: {any}  |  Got: {any}", .{ exp, obs });
+        // std.debug.print("\n", .{});
         try std.testing.expect(std.mem.eql(u8, obs, exp));
     }
 }
 
-test "SortedStringArray(.Right).remove" {
+test "SortedStringArray(.LongestToShortest).remove" {
     std.debug.print("\n", .{});
-    var foo = SortedStringArray(16, Direction.Right){};
+    var foo = SortedStringArray(16, .LongestToShortest){};
     try foo.insert("sin");
     try foo.insert("cos");
     try foo.insert("rand");
@@ -137,9 +131,9 @@ test "SortedStringArray(.Right).remove" {
         // "tan",
     };
 
-    for (foo.buf[0..foo.len], expected) |obs, exp| {
-        std.debug.print("Expected: {any}  |  Got: {any}", .{ exp, obs });
-        std.debug.print("\n", .{});
+    for (foo.asSlice(), expected) |obs, exp| {
+        // std.debug.print("Expected: {any}  |  Got: {any}", .{ exp, obs });
+        // std.debug.print("\n", .{});
         try std.testing.expect(std.mem.eql(u8, obs, exp));
     }
 
@@ -147,9 +141,9 @@ test "SortedStringArray(.Right).remove" {
     try std.testing.expectError(error.ItemNotFound, foo.remove("tan"));
 }
 
-test "SortedStringArray(.Left).remove" {
+test "SortedStringArray(.ShortestToLongest).remove" {
     std.debug.print("\n", .{});
-    var foo = SortedStringArray(16, Direction.Left){};
+    var foo = SortedStringArray(16, .ShortestToLongest){};
     try foo.insert("sin");
     try foo.insert("cos");
     try foo.insert("rand");
@@ -166,9 +160,9 @@ test "SortedStringArray(.Left).remove" {
         // "normcdf",
     };
 
-    for (foo.buf[0..foo.len], expected) |obs, exp| {
-        std.debug.print("Expected: {any}  |  Got: {any}", .{ exp, obs });
-        std.debug.print("\n", .{});
+    for (foo.asSlice(), expected) |obs, exp| {
+        // std.debug.print("Expected: {any}  |  Got: {any}", .{ exp, obs });
+        // std.debug.print("\n", .{});
         try std.testing.expect(std.mem.eql(u8, obs, exp));
     }
 
