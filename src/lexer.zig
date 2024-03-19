@@ -35,13 +35,14 @@ pub const Lexer = struct {
         .{ .name = "cot", .type = .Function },
         .{ .name = "arctan", .type = .Function },
         .{ .name = "arccot", .type = .Function },
+        .{ .name = "returned", .type = .Identifier },
     };
 
     fn sortKeywords() void {
         std.sort.block(Keyword, &keywords, {}, struct {
             fn greaterName(context: void, lhs: Keyword, rhs: Keyword) bool {
                 _ = context;
-                return lhs.name.len < rhs.name.len;
+                return lhs.name.len > rhs.name.len;
             }
         }.greaterName);
     }
@@ -211,7 +212,8 @@ test "Lexer>Expression-1" {
         "5.8 * x\x137\x14 + 3 == 19;\n" ++
         "fn(x) {\n" ++
         "    return x / 3;\n" ++
-        "}";
+        "}\n" ++
+        "returned + 9;";
 
     const expected = [_]Token{
         newToken(.Identifier, "let"),
@@ -248,6 +250,10 @@ test "Lexer>Expression-1" {
         newToken(.Number, "3"),
         newToken(.Semicolon, ";"),
         newToken(.RightCurly, "}"),
+        newToken(.Identifier, "returned"),
+        newToken(.Plus, "+"),
+        newToken(.Number, "9"),
+        newToken(.Semicolon, ";"),
     };
 
     var l = Lexer.init(input);
