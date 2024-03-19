@@ -1,28 +1,13 @@
 // TODO:
-// * refactor nextToken
-//   * switch emits token type
 // * more tests. Ensure fully working
-// ✔️ cut down Lexer struct size
-//   ✔️ Lexer.ch
-//   ✔️ Lexer.read_pos
-// ✔️ decimal points
 // * Number separator (comma, underscore)
-// ✔️ Exponent control characters
 // * Identifiers
-//   ✔️ Subscript control characters
-//   * Single char
-//     ✔️ Variables
-//     * Functions: user defined
 //   * Multiple char
-//     ✔️ Functions: builtin
 //     * Programs
-//     ✔️ Lookahead lexing
-//     ✔️ Dynamic list...
 // * cache token results
 
 const std = @import("std");
 const Token = @import("token.zig").Token;
-const StringArray = @import("sorted_string_array.zig").SortedStringArray;
 
 pub const LexError = error{
     EndOfExpression,
@@ -32,18 +17,45 @@ pub const LexError = error{
 pub const Lexer = struct {
     expr: []const u8,
     pos: usize,
-    keywords: StringArray(16, .LongestToShortest),
 
-    pub fn init(expression: []const u8, kwords: StringArray(16, .LongestToShortest)) Lexer {
+    const Keyword = struct { name: []const u8, type: Token.Type };
+    pub var keywords = [_]Keyword{
+        .{ .name = "return", .type = .Identifier },
+        .{ .name = "let", .type = .Identifier },
+        .{ .name = "fn", .type = .Identifier },
+        .{ .name = "sin", .type = .Function },
+        .{ .name = "csc", .type = .Function },
+        .{ .name = "arcsin", .type = .Function },
+        .{ .name = "arccsc", .type = .Function },
+        .{ .name = "cos", .type = .Function },
+        .{ .name = "sec", .type = .Function },
+        .{ .name = "arccos", .type = .Function },
+        .{ .name = "arcsec", .type = .Function },
+        .{ .name = "tan", .type = .Function },
+        .{ .name = "cot", .type = .Function },
+        .{ .name = "arctan", .type = .Function },
+        .{ .name = "arccot", .type = .Function },
+    };
+
+    fn sortKeywords() void {
+        std.sort.block(Keyword, &keywords, {}, struct {
+            fn greaterName(context: void, lhs: Keyword, rhs: Keyword) bool {
+                _ = context;
+                return lhs.name.len < rhs.name.len;
+            }
+        }.greaterName);
+    }
+
+    pub fn init(expression: []const u8) Lexer {
         const l: Lexer = .{
             .expr = expression,
             .pos = 0,
-            .keywords = kwords,
         };
+        sortKeywords();
         return l;
     }
 
-    fn peekChar(l: *Lexer) !u8 {
+    fn peekChar(l: Lexer) LexError!u8 {
         if (l.pos + 1 >= l.expr.len) {
             return LexError.EndOfExpression;
         }
@@ -66,8 +78,6 @@ pub const Lexer = struct {
     }
 
     pub fn nextToken(l: *Lexer) !Token {
-        var tok: Token = undefined;
-
         if (l.pos >= l.expr.len) {
             return LexError.EndOfExpression;
         }
@@ -75,98 +85,79 @@ pub const Lexer = struct {
         l.eatWhitespace();
 
         const ch: u8 = l.expr[l.pos];
-        switch (ch) {
-            '`' => tok = newToken(.Grave, "`"),
-            '~' => tok = newToken(.Tilde, "~"),
-            '!' => {
-                if (l.peekChar() catch 0 == '=') {
-                    l.readChar() catch unreachable;
-                    tok = newToken(.CompareNotEquals, "!=");
-                } else {
-                    tok = newToken(.Bang, "!");
-                }
-            },
-            '@' => tok = newToken(.At, "@"),
-            '#' => tok = newToken(.Hashtag, "#"),
-            '$' => tok = newToken(.Dollar, "$"),
-            '%' => tok = newToken(.Percent, "%"),
-            '^' => tok = newToken(.Caret, "^"),
-            '&' => tok = newToken(.And, "&"),
-            '*' => tok = newToken(.Asterisk, "*"),
-            '(' => tok = newToken(.LeftParenthesis, l.expr[l.pos .. l.pos + 1]),
-            ')' => tok = newToken(.RightParenthesis, ")"),
-            '-' => tok = newToken(.Minus, "-"),
-            '=' => {
-                if (l.peekChar() catch 0 == '=') {
-                    l.readChar() catch unreachable;
-                    tok = newToken(.CompareEquals, "==");
-                } else {
-                    tok = newToken(.Equals, "=");
-                }
-            },
-            '+' => tok = newToken(.Plus, "+"),
-            '[' => tok = newToken(.LeftBracket, "["),
-            ']' => tok = newToken(.RightBracket, "]"),
-            '{' => tok = newToken(.LeftCurly, "{"),
-            '}' => tok = newToken(.RightCurly, "}"),
-            '|' => tok = newToken(.Pipe, "|"),
-            ';' => tok = newToken(.Semicolon, ";"),
-            ':' => tok = newToken(.Colon, ":"),
-            '\'' => tok = newToken(.SingleQuote, "'"),
-            '"' => tok = newToken(.DoubleQuote, "\""),
-            ',' => tok = newToken(.Comma, ","),
-            '<' => {
-                if (l.peekChar() catch 0 == '=') {
-                    l.readChar() catch unreachable;
-                    tok = newToken(.CompareLTE, "<=");
-                } else {
-                    tok = newToken(.LeftAngle, "<");
-                }
-            },
-            '>' => {
-                if (l.peekChar() catch 0 == '=') {
-                    l.readChar() catch unreachable;
-                    tok = newToken(.CompareGTE, ">=");
-                } else {
-                    tok = newToken(.RightAngle, ">");
-                }
-            },
-            '.' => tok = newToken(.Period, "."),
-            '/' => tok = newToken(.Slash, "/"),
-            '?' => tok = newToken(.Question, "?"),
-            17 => tok = newToken(.SubscriptStart, "\x11"), // DC1
-            18 => tok = newToken(.SubscriptEnd, "\x12"), // DC2
-            19 => tok = newToken(.SuperscriptStart, "\x13"), // DC3
-            20 => tok = newToken(.SuperscriptEnd, "\x14"), // DC4
+        const token_type = switch (ch) {
+            '`' => .Grave,
+            '~' => .Tilde,
+            '!' => l.checkCompareToken(ch),
+            '@' => .At,
+            '#' => .Hashtag,
+            '$' => .Dollar,
+            '%' => .Percent,
+            '^' => .Caret,
+            '&' => .And,
+            '*' => .Asterisk,
+            '(' => .LeftParenthesis,
+            ')' => .RightParenthesis,
+            '-' => .Minus,
+            '=' => l.checkCompareToken(ch),
+            '+' => .Plus,
+            '[' => .LeftBracket,
+            ']' => .RightBracket,
+            '{' => .LeftCurly,
+            '}' => .RightCurly,
+            '|' => .Pipe,
+            ';' => .Semicolon,
+            ':' => .Colon,
+            '\'' => .SingleQuote,
+            '"' => .DoubleQuote,
+            ',' => .Comma,
+            '<' => l.checkCompareToken(ch),
+            '>' => l.checkCompareToken(ch),
+            '/' => .Slash,
+            '?' => .Question,
+            17 => .SubscriptStart, // DC1
+            18 => .SubscriptEnd, // DC2
+            19 => .SuperscriptStart, // DC3
+            20 => .SuperscriptEnd, // DC4
+            'a'...'z', 'A'...'Z' => .Identifier,
+            '0'...'9', '.' => .Number,
             else => {
-                if (isAlphabetic(ch)) {
-                    return l.readIdentifier();
-                } else if (isNumeric(ch)) {
-                    return l.readNumber();
-                }
                 l.readChar() catch undefined;
                 return LexError.InvalidCharacter;
             },
-        }
+        };
 
-        l.readChar() catch undefined;
-        return tok;
+        switch (token_type) {
+            .Identifier => return l.readIdentifier(),
+            .Number => return l.readNumber(),
+            .CompareLTE, .CompareGTE, .CompareEquals, .CompareNotEquals => {
+                defer {
+                    l.readChar() catch undefined;
+                    l.readChar() catch undefined;
+                }
+                return Token{ .type = token_type, .literal = l.expr[l.pos .. l.pos + 2] };
+            },
+            else => {
+                defer l.readChar() catch undefined;
+                return Token{ .type = token_type, .literal = l.expr[l.pos .. l.pos + 1] };
+            },
+        }
     }
 
     fn readIdentifier(l: *Lexer) Token {
         const start: usize = l.pos;
         var ch: u8 = l.expr[l.pos];
-        while (isAlphabetic(ch)) {
+        while (std.ascii.isAlphabetic(ch) or ch == '_') {
             l.readChar() catch break;
             ch = l.expr[l.pos];
         }
         const str: []const u8 = l.expr[start..l.pos];
-        for (l.keywords.asSlice()) |kword| {
-            if (std.mem.startsWith(u8, str, kword)) {
-                l.pos = start + kword.len;
+        for (keywords) |kword| {
+            if (std.mem.startsWith(u8, str, kword.name)) {
+                l.pos = start + kword.name.len;
                 return Token{
-                    .literal = l.expr[start .. start + kword.len],
-                    .type = .Identifier,
+                    .literal = kword.name,
+                    .type = kword.type,
                 };
             }
         }
@@ -181,7 +172,7 @@ pub const Lexer = struct {
         const start: usize = l.pos;
         var has_dec: bool = false;
         var ch: u8 = l.expr[l.pos];
-        while (isNumeric(ch)) {
+        while (std.ascii.isDigit(ch) or ch == '.') {
             if (ch == '.') {
                 if (has_dec) break;
                 has_dec = true;
@@ -195,21 +186,24 @@ pub const Lexer = struct {
             .type = .Number,
         };
     }
+
+    fn checkCompareToken(l: Lexer, ch: u8) Token.Type {
+        const is_comparison = l.peekChar() catch 0 == '=';
+        return switch (ch) {
+            '=' => if (is_comparison) .CompareEquals else .Equals,
+            '!' => if (is_comparison) .CompareNotEquals else .Bang,
+            '<' => if (is_comparison) .CompareLTE else .LeftAngle,
+            '>' => if (is_comparison) .CompareGTE else .RightAngle,
+            else => unreachable,
+        };
+    }
 };
-
-fn isAlphabetic(ch: u8) bool {
-    return ('a' <= ch and ch <= 'z') or
-        ('A' <= ch and ch <= 'Z') or
-        (ch == '_');
-}
-
-fn isNumeric(ch: u8) bool {
-    return ('0' <= ch and ch <= '9') or ch == '.';
-}
 
 fn newToken(token_type: Token.Type, literal: []const u8) Token {
     return Token{ .type = token_type, .literal = literal };
 }
+
+const print_debug = true;
 
 test "Lexer>Expression-1" {
     const input: []const u8 =
@@ -256,25 +250,22 @@ test "Lexer>Expression-1" {
         newToken(.RightCurly, "}"),
     };
 
-    var s = StringArray(16, .LongestToShortest){};
-    try s.insert("return");
-    try s.insert("fn");
-    try s.insert("let");
-    var l = Lexer.init(input, s);
+    var l = Lexer.init(input);
 
     std.debug.print("\n", .{});
     for (expected) |t| {
         const tok: Token = try l.nextToken();
 
-        std.debug.print(
-            "expected: <{any}:{s}>  |  got: <{any}:{s}>\n",
-            .{
-                t.type,
-                t.literal,
-                tok.type,
-                tok.literal,
-            },
-        );
+        if (print_debug)
+            std.debug.print(
+                "expected: <{any}:{s}>  |  got: <{any}:{s}>\n",
+                .{
+                    t.type,
+                    t.literal,
+                    tok.type,
+                    tok.literal,
+                },
+            );
         try std.testing.expectEqual(tok.type, t.type);
         try std.testing.expect(std.mem.eql(u8, tok.literal, t.literal));
     }

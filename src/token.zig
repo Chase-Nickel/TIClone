@@ -6,8 +6,9 @@ pub const Token = struct {
 
     pub const Type = enum {
         Identifier,
-        Number,
+        Function,
         Program,
+        Number,
 
         Grave,
         Tilde,
